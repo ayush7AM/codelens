@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CodeLens — AI Code Quality Reviewer</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #111118;
+    --bg3: #16161f;
+    --border: rgba(255,255,255,0.06);
+    --border-hover: rgba(255,255,255,0.12);
+    --text: #f0f0f5;
+    --text-muted: #8888a0;
+    --text-dim: #55556a;
+    --accent: #7c6aff;
+    --accent-glow: rgba(124,106,255,0.15);
+    --critical: #ff4f4f;
+    --critical-bg: rgba(255,79,79,0.08);
+    --warning: #ffaa00;
+    --warning-bg: rgba(255,170,0,0.08);
+    --suggestion: #00c8ff;
+    --suggestion-bg: rgba(0,200,255,0.08);
+    --good: #22dd88;
+    --good-bg: rgba(34,221,136,0.08);
+    --font-head: 'Syne', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+
+  /* HEADER */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem 2rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-icon {
+    width: 32px;
+    height: 32px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 500;
+    color: #fff;
+  }
+
+  .logo-text {
+    font-family: var(--font-head);
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text);
+  }
+
+  .logo-text span { color: var(--accent); }
+
+  .badge {
+    font-size: 11px;
+    background: var(--accent-glow);
+    color: var(--accent);
+    border: 1px solid rgba(124,106,255,0.3);
+    border-radius: 20px;
+    padding: 3px 10px;
+    font-family: var(--font-mono);
+    letter-spacing: 0.04em;
+  }
+
+  /* MAIN LAYOUT */
+  .main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    min-height: calc(100vh - 64px);
+  }
+
+  /* PANEL */
+  .panel {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg3);
+  }
+
+  .panel-title {
+    font-family: var(--font-head);
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  /* LANGUAGE SELECTOR */
+  .lang-select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .lang-select:hover { border-color: var(--border-hover); }
+  .lang-select option { background: #1a1a2e; }
+
+  /* EDITOR AREA */
+  .editor-wrap {
+    display: flex;
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .line-nums {
+    width: 44px;
+    background: var(--bg3);
+    border-right: 1px solid var(--border);
+    padding: 1rem 0;
+    flex-shrink: 0;
+    overflow: hidden;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    text-align: right;
+    padding-right: 10px;
+    line-height: 1.6;
+    user-select: none;
+  }
+
+  .code-editor {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.6;
+    padding: 1rem;
+    resize: none;
+    outline: none;
+    min-height: 420px;
+    tab-size: 2;
+    caret-color: var(--accent);
+  }
+  .code-editor::placeholder { color: var(--text-dim); }
+  .code-editor::selection { background: var(--accent-glow); }
+
+  /* FOOTER of input panel */
+  .panel-footer {
+    padding: 1rem 1.25rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg3);
+  }
+
+  .char-count {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .analyze-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 0.6rem 1.4rem;
+    font-family: var(--font-head);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.02em;
+  }
+  .analyze-btn:hover { background: #9580ff; transform: translateY(-1px); }
+  .analyze-btn:active { transform: translateY(0); }
+  .analyze-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .btn-icon { font-size: 14px; }
+
+  /* SPINNER */
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* RESULTS PANEL */
+  .results-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .results-body::-webkit-scrollbar { width: 4px; }
+  .results-body::-webkit-scrollbar-track { background: transparent; }
+  .results-body::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 2px; }
+
+  /* EMPTY STATE */
+  .empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    color: var(--text-dim);
+    text-align: center;
+    padding: 3rem;
+  }
+  .empty-icon {
+    font-size: 2.5rem;
+    opacity: 0.4;
+  }
+  .empty-state p { font-size: 0.9rem; max-width: 200px; line-height: 1.5; }
+
+  /* SUMMARY CARDS */
+  .score-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+
+  .score-card {
+    border-radius: 10px;
+    padding: 0.75rem;
+    text-align: center;
+    border: 1px solid var(--border);
+  }
+
+  .score-card .s-num {
+    font-family: var(--font-head);
+    font-size: 1.5rem;
+    font-weight: 800;
+    display: block;
+  }
+  .score-card .s-label {
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .card-critical { background: var(--critical-bg); border-color: rgba(255,79,79,0.2); }
+  .card-critical .s-num { color: var(--critical); }
+  .card-warning { background: var(--warning-bg); border-color: rgba(255,170,0,0.2); }
+  .card-warning .s-num { color: var(--warning); }
+  .card-suggestion { background: var(--suggestion-bg); border-color: rgba(0,200,255,0.2); }
+  .card-suggestion .s-num { color: var(--suggestion); }
+  .card-score { background: var(--accent-glow); border-color: rgba(124,106,255,0.2); }
+  .card-score .s-num { color: var(--accent); }
+
+  /* ISSUE CARDS */
+  .issue-card {
+    border-radius: 10px;
+    padding: 1rem;
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    animation: fadeSlide 0.3s ease both;
+  }
+
+  @keyframes fadeSlide {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .issue-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 0.5rem;
+  }
+
+  .severity-pill {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 20px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    font-family: var(--font-mono);
+  }
+  .pill-critical { background: var(--critical-bg); color: var(--critical); border: 1px solid rgba(255,79,79,0.3); }
+  .pill-warning  { background: var(--warning-bg);  color: var(--warning);  border: 1px solid rgba(255,170,0,0.3); }
+  .pill-suggestion { background: var(--suggestion-bg); color: var(--suggestion); border: 1px solid rgba(0,200,255,0.3); }
+  .pill-good { background: var(--good-bg); color: var(--good); border: 1px solid rgba(34,221,136,0.3); }
+
+  .issue-title {
+    font-family: var(--font-head);
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.4;
+  }
+
+  .issue-desc {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.6;
+    margin-bottom: 0.75rem;
+  }
+
+  .issue-code {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.6rem 0.8rem;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: #c8c8e0;
+    overflow-x: auto;
+    line-height: 1.5;
+    white-space: pre;
+  }
+
+  .issue-code-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+    font-family: var(--font-mono);
+  }
+
+  /* OVERALL SUMMARY */
+  .overall-box {
+    background: var(--accent-glow);
+    border: 1px solid rgba(124,106,255,0.2);
+    border-radius: 10px;
+    padding: 1rem;
+  }
+  .overall-box h4 {
+    font-family: var(--font-head);
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+  }
+  .overall-box p {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    line-height: 1.65;
+  }
+
+  /* LOADING STATE */
+  .loading-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 3rem;
+  }
+  .loading-bar {
+    width: 200px;
+    height: 2px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .loading-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    animation: load 1.5s ease-in-out infinite;
+  }
+  @keyframes load {
+    0% { width: 0%; margin-left: 0; }
+    50% { width: 60%; margin-left: 20%; }
+    100% { width: 0%; margin-left: 100%; }
+  }
+  .loading-text {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  /* ERROR */
+  .error-box {
+    background: rgba(255,79,79,0.08);
+    border: 1px solid rgba(255,79,79,0.2);
+    border-radius: 10px;
+    padding: 1rem;
+    color: var(--critical);
+    font-size: 0.875rem;
+  }
+
+  /* EXPORT BTN */
+  .export-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .export-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  @media (max-width: 768px) {
+    .main { grid-template-columns: 1fr; padding: 1rem; }
+    .score-row { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">&lt;/&gt;</div>
+    <span class="logo-text">Code<span>Lens</span></span>
+  </div>
+  <span class="badge">AI-Powered · Claude</span>
+</header>
+
+<div class="main">
+
+  <!-- LEFT: Code Input -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Input Code</span>
+      <select class="lang-select" id="langSelect">
+        <option value="python">Python</option>
+        <option value="javascript">JavaScript</option>
+        <option value="java">Java</option>
+        <option value="cpp">C++</option>
+        <option value="c">C</option>
+        <option value="typescript">TypeScript</option>
+        <option value="go">Go</option>
+        <option value="rust">Rust</option>
+        <option value="sql">SQL</option>
+        <option value="auto">Auto-detect</option>
+      </select>
+    </div>
+    <div class="editor-wrap">
+      <div class="line-nums" id="lineNums">1</div>
+      <textarea class="code-editor" id="codeEditor"
+        placeholder="# Paste your code here...&#10;# The AI will analyze it for bugs, security issues,&#10;# code smells, and style problems.&#10;&#10;def example(data):&#10;    result = []&#10;    for i in range(len(data)):&#10;        if data[i] != None:&#10;            result.append(data[i])&#10;    return result"
+        spellcheck="false"></textarea>
+    </div>
+    <div class="panel-footer">
+      <span class="char-count" id="charCount">0 lines · 0 chars</span>
+      <button class="analyze-btn" id="analyzeBtn" onclick="analyzeCode()">
+        <span class="btn-icon">⚡</span> Analyze Code
+      </button>
+    </div>
+  </div>
+
+  <!-- RIGHT: Results -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Analysis Report</span>
+      <button class="export-btn" id="exportBtn" onclick="exportReport()" style="display:none">↓ Export</button>
+    </div>
+    <div class="results-body" id="resultsBody">
+      <div class="empty-state">
+        <div class="empty-icon">🔍</div>
+        <p>Paste your code and click Analyze to get started</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const editor = document.getElementById('codeEditor');
+const lineNums = document.getElementById('lineNums');
+const charCount = document.getElementById('charCount');
+const resultsBody = document.getElementById('resultsBody');
+const analyzeBtn = document.getElementById('analyzeBtn');
+const exportBtn = document.getElementById('exportBtn');
+let lastReport = null;
+
+function updateLineNums() {
+  const lines = editor.value.split('\n');
+  lineNums.innerHTML = lines.map((_, i) => i + 1).join('<br>');
+  charCount.textContent = `${lines.length} lines · ${editor.value.length} chars`;
+}
+
+editor.addEventListener('input', updateLineNums);
+editor.addEventListener('scroll', () => { lineNums.scrollTop = editor.scrollTop; });
+editor.addEventListener('keydown', e => {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const s = editor.selectionStart, end = editor.selectionEnd;
+    editor.value = editor.value.substring(0, s) + '  ' + editor.value.substring(end);
+    editor.selectionStart = editor.selectionEnd = s + 2;
+    updateLineNums();
+  }
+});
+updateLineNums();
+
+function showLoading() {
+  resultsBody.innerHTML = `
+    <div class="loading-state">
+      <div class="loading-bar"><div class="loading-bar-fill"></div></div>
+      <span class="loading-text">Analyzing code quality...</span>
+    </div>`;
+}
+
+function severityPillClass(sev) {
+  const s = sev.toLowerCase();
+  if (s === 'critical' || s === 'bug' || s === 'error') return 'pill-critical';
+  if (s === 'warning' || s === 'security') return 'pill-warning';
+  if (s === 'suggestion' || s === 'style') return 'pill-suggestion';
+  if (s === 'good' || s === 'positive') return 'pill-good';
+  return 'pill-suggestion';
+}
+
+function severityCardClass(sev) {
+  const s = sev.toLowerCase();
+  if (s === 'critical') return 'card-critical';
+  if (s === 'warning') return 'card-warning';
+  if (s === 'suggestion') return 'card-suggestion';
+  return 'card-score';
+}
+
+function renderReport(data) {
+  lastReport = data;
+  const { overall_score, summary, issues, positives } = data;
+
+  const critCount = issues.filter(i => ['critical','bug','error'].includes(i.severity.toLowerCase())).length;
+  const warnCount = issues.filter(i => ['warning','security'].includes(i.severity.toLowerCase())).length;
+  const suggCount = issues.filter(i => ['suggestion','style'].includes(i.severity.toLowerCase())).length;
+
+  let html = `
+    <div class="score-row">
+      <div class="score-card card-critical"><span class="s-num">${critCount}</span><span class="s-label">Critical</span></div>
+      <div class="score-card card-warning"><span class="s-num">${warnCount}</span><span class="s-label">Warnings</span></div>
+      <div class="score-card card-suggestion"><span class="s-num">${suggCount}</span><span class="s-label">Suggestions</span></div>
+      <div class="score-card card-score"><span class="s-num">${overall_score}<span style="font-size:0.9rem">/10</span></span><span class="s-label">Score</span></div>
+    </div>`;
+
+  if (summary) {
+    html += `<div class="overall-box"><h4>Overall Assessment</h4><p>${summary}</p></div>`;
+  }
+
+  if (positives && positives.length > 0) {
+    positives.forEach(p => {
+      html += `
+        <div class="issue-card">
+          <div class="issue-top">
+            <span class="severity-pill pill-good">✓ Good</span>
+            <span class="issue-title">${p.title}</span>
+          </div>
+          <p class="issue-desc">${p.description}</p>
+        </div>`;
+    });
+  }
+
+  issues.forEach((issue, idx) => {
+    const pillClass = severityPillClass(issue.severity);
+    const codeBlock = issue.fix_suggestion ? `
+      <div class="issue-code-label">Suggested Fix</div>
+      <div class="issue-code">${escHtml(issue.fix_suggestion)}</div>` : '';
+    html += `
+      <div class="issue-card" style="animation-delay:${idx * 0.04}s">
+        <div class="issue-top">
+          <span class="severity-pill ${pillClass}">${issue.severity}</span>
+          <span class="issue-title">${issue.title}</span>
+        </div>
+        <p class="issue-desc">${issue.description}</p>
+        ${codeBlock}
+      </div>`;
+  });
+
+  resultsBody.innerHTML = html;
+  exportBtn.style.display = 'block';
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function analyzeCode() {
+  const code = editor.value.trim();
+  if (!code) { alert('Please paste some code first.'); return; }
+
+  const lang = document.getElementById('langSelect').value;
+  analyzeBtn.disabled = true;
+  analyzeBtn.innerHTML = '<div class="spinner"></div> Analyzing...';
+  exportBtn.style.display = 'none';
+  showLoading();
+
+  const prompt = `You are an expert code reviewer. Analyze the following ${lang === 'auto' ? '' : lang} code and return a JSON object only — no markdown, no extra text.
+
+Return this exact JSON structure:
+{
+  "overall_score": <number 1-10>,
+  "summary": "<2-3 sentence overall assessment>",
+  "positives": [
+    { "title": "<short title>", "description": "<what is done well>" }
+  ],
+  "issues": [
+    {
+      "severity": "<Critical|Warning|Suggestion>",
+      "title": "<short issue title>",
+      "description": "<clear explanation of the problem and why it matters>",
+      "fix_suggestion": "<fixed code snippet or null>"
+    }
+  ]
+}
+
+Code to review:
+\`\`\`
+${code}
+\`\`\`
+
+Focus on: bugs, logic errors, security vulnerabilities, performance problems, bad practices, readability, and missing edge case handling. Be specific and actionable. Return ONLY the JSON.`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    const data = await res.json();
+    const text = data.content?.map(b => b.text || '').join('') || '';
+    const cleaned = text.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(cleaned);
+    renderReport(parsed);
+  } catch (err) {
+    resultsBody.innerHTML = `<div class="error-box">⚠ Analysis failed: ${err.message}. Check your connection and try again.</div>`;
+  } finally {
+    analyzeBtn.disabled = false;
+    analyzeBtn.innerHTML = '<span class="btn-icon">⚡</span> Analyze Code';
+  }
+}
+
+function exportReport() {
+  if (!lastReport) return;
+  const lines = [
+    'CODELENS — CODE QUALITY REPORT',
+    '================================',
+    `Score: ${lastReport.overall_score}/10`,
+    '',
+    'SUMMARY',
+    lastReport.summary,
+    '',
+    'ISSUES',
+    ...lastReport.issues.map((i, idx) =>
+      `${idx+1}. [${i.severity.toUpperCase()}] ${i.title}\n   ${i.description}\n${i.fix_suggestion ? '   Fix: ' + i.fix_suggestion : ''}`
+    ),
+    '',
+    'Generated by CodeLens · ' + new Date().toLocaleString()
+  ].join('\n');
+
+  const blob = new Blob([lines], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'codelens-report.txt';
+  a.click();
+}
+</script>
+</body>
+</html>
