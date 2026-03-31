@@ -14,52 +14,59 @@
 - **Quality score** — Overall code quality score out of 10
 - **Export report** — Download the full analysis as a `.txt` file
 - **Live editor** — Syntax-aware editor with line numbers and Tab support
+- **Secure backend** — API key stored server-side via Vercel environment variables
 
 ## 🚀 Tech Stack
 
 - **Frontend** — Vanilla HTML, CSS, JavaScript (zero dependencies)
+- **Backend** — Vercel Serverless Function (Node.js proxy)
 - **AI** — Anthropic Claude Sonnet API (`claude-sonnet-4-20250514`)
 - **Deployment** — Vercel
 
-## 📦 Setup & Run Locally
+## 📦 Setup & Deploy
 
 ```bash
-# Clone the repo
+# 1. Clone the repo
 git clone https://github.com/YOUR_USERNAME/codelens.git
 cd codelens
 
-# Open directly in browser (no build step needed)
-open index.html
+# 2. Install Vercel CLI
+npm install -g vercel
+
+# 3. Deploy (follow prompts)
+vercel
+
+# 4. Add your Anthropic API key as an environment variable
+#    → Go to vercel.com → your project → Settings → Environment Variables
+#    → Add: ANTHROPIC_API_KEY = sk-ant-...
+#    → Redeploy once after adding the key
 ```
-
-> **Note:** The app uses the Anthropic API. The API key is handled via Anthropic's browser-based auth — no `.env` setup needed for the hosted version.
-
-## 🛠 How It Works
-
-1. Paste your code into the editor
-2. Select the programming language
-3. Click **Analyze Code**
-4. The app sends your code to Claude with a structured prompt
-5. Claude returns a JSON report with classified issues and fix suggestions
-6. Results render as color-coded cards with an exportable report
 
 ## 📁 Project Structure
 
 ```
 codelens/
-├── index.html        # Full app (single-file architecture)
-├── vercel.json       # Vercel deployment config
-├── .gitignore        # Git ignore rules
-└── README.md         # This file
+├── index.html        # Frontend (single-file)
+├── api/
+│   └── analyze.js    # Vercel serverless function (API proxy)
+├── vercel.json       # Vercel config
+├── .gitignore
+└── README.md
 ```
 
-## 🤝 Contributing
+## 🔑 Environment Variables
 
-Pull requests are welcome! For major changes, please open an issue first.
+| Variable | Description |
+|---|---|
+| `ANTHROPIC_API_KEY` | Your Anthropic API key — set in Vercel dashboard |
 
-## 📄 License
+## 🛠 How It Works
 
-MIT — feel free to use this in your own projects.
+1. User pastes code → clicks Analyze
+2. Frontend sends `POST /api/analyze` with `{ code, language }`
+3. Vercel serverless function forwards request to Anthropic API (with secret key)
+4. Claude returns a structured JSON report
+5. Results render as color-coded issue cards
 
 ---
 
