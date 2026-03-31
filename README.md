@@ -63,4 +63,4 @@ MIT — feel free to use this in your own projects.
 
 ---
 
-Built by [Ayush](https://github.com/YOUR_USERNAME) · Powered by [Anthropic Claude](https://anthropic.com)
+Built by [Ayush](https://github.com/ayush7AM) · Powered by [Anthropic Claude](https://anthropic.com)
