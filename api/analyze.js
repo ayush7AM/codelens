@@ -42,7 +42,7 @@ ${code}
 Focus on: bugs, logic errors, security vulnerabilities, performance problems, bad practices, readability, and missing edge case handling. Be specific and actionable. Return ONLY the JSON.`;
 
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
